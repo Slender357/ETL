@@ -1,5 +1,6 @@
 import abc
 import json
+from json import JSONDecodeError
 from typing import Any, Dict
 
 
@@ -32,15 +33,18 @@ class JsonFileStorage(BaseStorage):
 
     def save_state(self, state: Dict[str, Any]) -> None:
         """Сохранить состояние в хранилище."""
+        last_state = self.retrieve_state()
         with open(self.file_path, 'w+') as f:
-            f.write(json.dumps(state))
+            for key, value in state.items():
+                last_state[key] = value
+            f.write(json.dumps(last_state))
 
     def retrieve_state(self) -> Dict[str, Any]:
         """Получить состояние из хранилища."""
         try:
             with open(self.file_path) as f:
                 return json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, JSONDecodeError):
             return {}
 
 
@@ -53,6 +57,9 @@ class State:
     def set_state(self, key: str, value: Any) -> None:
         """Установить состояние для определённого ключа."""
         self.storage.save_state({key: value})
+
+    def butch_set_state(self, states: dict) -> None:
+        self.storage.save_state(states)
 
     def get_state(self, key: str) -> Any:
         """Получить состояние по определённому ключу."""
