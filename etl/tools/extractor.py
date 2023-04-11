@@ -174,15 +174,15 @@ class PostgresExtractor:
         log.info("Start check films")
         yield from self.extractor_films()
         log.info("End check films")
-        # if self.state.get_state("last_modified") is None:
-        #     log.info("Last_modified is None,set last_modified")
-        #     batch = {
-        #         "start_time": None,
-        #         "last_modified": str(self.start_time),
-        #         "film_work_last_uuid": None,
-        #     }
-        #     self.state.butch_set_state(batch)
-        #     return
+        if self.state.get_state("last_modified") is None:
+            log.info("Last_modified is None,set last_modified")
+            batch = {
+                "start_time": None,
+                "last_modified": str(self.start_time),
+                "film_work_last_uuid": None,
+            }
+            self.state.butch_set_state(batch)
+            return
         log.info("Start check genre")
         yield from self._reference_extractor("genre")
         log.info("End check genre")
