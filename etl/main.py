@@ -1,11 +1,12 @@
-from more_itertools import chunked
 from time import sleep
 
-from etl.tools.config import MainConfig, ESConfig, PostgresConfig, STORAGE
-from etl.tools.loader import Loader
+from more_itertools import chunked
+
+from etl.tools.config import STORAGE, ESConfig, MainConfig, PostgresConfig
 from etl.tools.extractor import PostgresExtractor
+from etl.tools.loader import Loader
+from etl.tools.state import JsonFileStorage, State
 from etl.tools.transform import Transform
-from etl.tools.state import State, JsonFileStorage
 
 MAIN_CONFIG = MainConfig()
 ES_CONFIG = ESConfig()
@@ -16,12 +17,17 @@ delay = MAIN_CONFIG.delay
 state = State(JsonFileStorage(STORAGE))
 
 
-def etl(load: Loader, extract: PostgresExtractor, chunk_size: int, delay: int) -> None:
+def etl(
+        load: Loader,
+        extract: PostgresExtractor,
+        chunk: int,
+        delay_sek: int
+) -> None:
     transformer = Transform(extract.extractors())
-    chunk_items = chunked(transformer.transform(), chunk_size)
+    chunk_items = chunked(transformer.transform(), chunk)
     for items in chunk_items:
         load.bulk(items)
-    sleep(delay)
+    sleep(delay_sek)
 
 
 if __name__ == "__main__":

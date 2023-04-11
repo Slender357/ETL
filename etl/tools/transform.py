@@ -1,5 +1,6 @@
-from typing import Iterable, Any
-from etl.tools.models import FilmWorkES, PersonType, Person
+from typing import Any, Iterable
+
+from etl.tools.models import FilmWorkES, Person, PersonType
 
 
 class Transform:
@@ -21,12 +22,18 @@ class Transform:
             match person["person_role"]:
                 case PersonType.actor.value:
                     actors.append(
-                        Person(id=person["person_id"], name=person["person_name"])
+                        Person(
+                            id=person["person_id"],
+                            name=person["person_name"]
+                        )
                     )
                     actors_name.append(person["person_name"])
                 case PersonType.writer.value:
                     writers.append(
-                        Person(id=person["person_id"], name=person["person_name"])
+                        Person(
+                            id=person["person_id"],
+                            name=person["person_name"]
+                        )
                     )
                     writers_name.append(person["person_name"])
                 case PersonType.director.value:

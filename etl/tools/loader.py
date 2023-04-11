@@ -1,9 +1,9 @@
-from typing import Optional, Callable, Any
 from functools import wraps
+from typing import Any, Callable, Optional
 
 from elasticsearch import Elasticsearch, helpers
 
-from etl.tools.backoff import backoff, BOFF_CONFIG
+from etl.tools.backoff import BOFF_CONFIG, backoff
 from etl.tools.config import ESConfig
 
 
@@ -14,7 +14,9 @@ class Loader:
 
     @backoff(**BOFF_CONFIG.dict())
     def connect(self):
-        self.connection = Elasticsearch(f"{self.config.host}:{self.config.port}")
+        self.connection = Elasticsearch(
+            f"{self.config.host}:{self.config.port}"
+        )
         if not self.connection.ping():
             raise
 
@@ -31,12 +33,12 @@ class Loader:
 
         return inner
 
-    def loader(self, data: dict[str, Any]) -> None:
+    def loader(self, data: list[dict[str, Any]]) -> None:
         while True:
             self.bulk(data)
 
     @_reconnect
-    def bulk(self, data: dict[str, Any]) -> None:
+    def bulk(self, data: list[dict[str, Any]]) -> None:
         resp = helpers.bulk(self.connection, index='movies', actions=data)
         print(resp)
 

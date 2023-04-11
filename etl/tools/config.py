@@ -1,7 +1,8 @@
-from pydantic import BaseSettings, Field
 import os
 from pathlib import Path
+
 import dotenv
+from pydantic import BaseSettings, Field
 
 dotenv.load_dotenv()
 
