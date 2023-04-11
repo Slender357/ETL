@@ -1,8 +1,13 @@
 from functools import wraps
 from time import sleep
+from typing import Callable
+
+from etl.tools.config import BackOffConfig
+
+BOFF_CONFIG = BackOffConfig()
 
 
-def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
+def backoff(start_sleep_time: float, factor: int, border_sleep_time: int) -> Callable:
     """
     Функция для повторного выполнения функции через некоторое время, если возникла ошибка.
     Использует наивный экспоненциальный рост времени повтора (factor) до граничного времени ожидания (border_sleep_time)
@@ -16,7 +21,7 @@ def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
     :return: результат выполнения функции
     """
 
-    def func_wrapper(func):
+    def func_wrapper(func: Callable) -> Callable:
         @wraps(func)
         def inner(*args, **kwargs):
             retry = 1
