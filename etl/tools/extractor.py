@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Callable, Iterable
@@ -8,8 +9,10 @@ from psycopg2.extras import DictCursor
 
 from etl.tools.backoff import BOFF_CONFIG, backoff
 from etl.tools.config import PostgresConfig
-from etl.tools.state import State
 from etl.tools.maker_guery import get_query
+from etl.tools.state import State
+
+log = logging.getLogger(__name__)
 
 
 class PostgresExtractor:
@@ -50,7 +53,7 @@ class PostgresExtractor:
                     yield from func(self, *args, **kwargs)
                     break
                 except (OperationalError, InterfaceError) as r:
-                    print(r)
+                    log.info(f"Postgres connect ERROR {r}")
                     self.connect()
 
         return inner
@@ -138,7 +141,7 @@ class PostgresExtractor:
         """
         for reference_ids in self._extractor_ids(reference_tab):
             for film_work_ids in self._extractor_ids(
-                    f"{reference_tab}_film_work", reference_ids
+                f"{reference_tab}_film_work", reference_ids
             ):
                 yield from self._extractor_films_in(film_work_ids)
             self.state.set_state(f"{reference_tab}_film_work_last_uuid", None)
@@ -163,8 +166,11 @@ class PostgresExtractor:
         if self.start_time is None:
             self.start_time = datetime.now(timezone.utc)
             self.state.set_state("start_time", str(self.start_time))
+        log.info("Start check films")
         yield from self.extractor_films()
+        log.info("End check films")
         if self.state.get_state("last_modified") is None:
+            log.info("Last_modified is None,set last_modified")
             batch = {
                 "start_time": None,
                 "last_modified": str(self.start_time),
@@ -172,8 +178,12 @@ class PostgresExtractor:
             }
             self.state.butch_set_state(batch)
             return
+        log.info("Start check genre")
         yield from self._reference_extractor("genre")
+        log.info("End check genre")
+        log.info("Start check person")
         yield from self._reference_extractor("person")
+        log.info("End check person")
         batch = {
             "start_time": None,
             "last_modified": str(self.start_time),
@@ -181,6 +191,7 @@ class PostgresExtractor:
             "genre_last_uuid": None,
             "person_last_uuid": None,
         }
+        log.info("Set Last_modified")
         self.state.butch_set_state(batch)
 
     def __del__(self):
@@ -189,10 +200,11 @@ class PostgresExtractor:
         :return:
         """
         self.connection.close()
+        log.info("Postgres connection close")
 
     def __enter__(self):
         """
-        Иницирует подклчение к Postgres
+        Инициирует подклчение к Postgres
         :return:
         """
         self.connect()
@@ -200,10 +212,11 @@ class PostgresExtractor:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
-        Закрывает подклчение к Postgres
+        Закрывает подключение к Postgres
         :param exc_type:
         :param exc_val:
         :param exc_tb:
         :return:
         """
         self.connection.close()
+        log.info("Postgres connection close")

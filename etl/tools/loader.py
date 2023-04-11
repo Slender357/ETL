@@ -1,10 +1,15 @@
+import json
+import logging
+import time
 from functools import wraps
 from typing import Any, Callable, Optional
 
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import BadRequestError, Elasticsearch, helpers
 
 from etl.tools.backoff import BOFF_CONFIG, backoff
-from etl.tools.config import ESConfig
+from etl.tools.config import BASE_DIR, ESConfig
+
+log = logging.getLogger(__name__)
 
 
 class Loader:
@@ -34,25 +39,17 @@ class Loader:
         :param func:
         :return:
         """
+
         @wraps(func)
         def inner(self, *args, **kwargs):
             while True:
                 try:
                     return func(self, *args, **kwargs)
                 except Exception as r:
-                    print(r)
-                    self.connect()
+                    log.info(f"Elasticsearch connect ERROR {r}")
+                    self._connect()
 
         return inner
-
-    # def loader(self, data: list[dict[str, Any]]) -> None:
-    #     """
-    #     Функция бесконеного цикла отправки данных
-    #     :param data:
-    #     :return:
-    #     """
-    #     while True:
-    #         self._bulk(data)
 
     @_reconnect
     def bulk(self, data: list[dict[str, Any]]) -> None:
@@ -61,19 +58,45 @@ class Loader:
         :param data:
         :return:
         """
-        resp = helpers.bulk(self.connection, index='movies', actions=data)
-        print(resp)
+        ok, errors = helpers.bulk(
+            self.connection,
+            index="movies", actions=data
+        )
+        time.sleep(1)
+        if len(errors) != 0:
+            log.error(f"Elasticsearch dont save {errors} document, try again")
+            raise
+        log.info(f"Elasticsearch save {ok} document")
+
+    @_reconnect
+    def create_movie_index(self):
+        try:
+            with open(BASE_DIR.joinpath("es_shema.json")) as j:
+                es_shema = json.load(j)
+                self.connection.indices.create(
+                    settings=es_shema["settings"],
+                    mappings=es_shema["mappings"],
+                    index="movies",
+                )
+        except BadRequestError:
+            pass
 
     def __enter__(self):
         """
         Иницирует подклчение Elasticsearch.
-        :return:
+        Пытается создать индекс.
+        :return: self
         """
         self._connect()
+        self.create_movie_index()
         return self
 
     def __del__(self):
+        """
+        Закрывает подключение к Elasticsearch.
+        """
         self.connection.close()
+        log.info("Elasticsearch connection close")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
@@ -81,6 +104,6 @@ class Loader:
         :param exc_type:
         :param exc_val:
         :param exc_tb:
-        :return:
         """
         self.connection.close()
+        log.info("Elasticsearch connection close")

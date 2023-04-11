@@ -1,3 +1,4 @@
+import logging
 from functools import wraps
 from time import sleep
 from typing import Callable
@@ -5,6 +6,7 @@ from typing import Callable
 from etl.tools.config import BackOffConfig
 
 BOFF_CONFIG = BackOffConfig()
+log = logging.getLogger(__name__)
 
 
 def backoff(
@@ -36,12 +38,12 @@ def backoff(
                 try:
                     return func(*args, **kwargs)
                 except Exception as r:
-                    print(r)
                     if t < border_sleep_time:
-                        t = start_sleep_time * (factor ^ retry)
+                        t = start_sleep_time * (factor**retry)
                     else:
                         t = border_sleep_time
                     sleep(t)
+                    log.info(f"{r} retry {retry} sleep {t}")
                     retry += 1
 
         return inner

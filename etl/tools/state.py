@@ -34,7 +34,7 @@ class JsonFileStorage(BaseStorage):
     def save_state(self, state: Dict[str, Any]) -> None:
         """Сохранить состояние в хранилище."""
         last_state = self.retrieve_state()
-        with open(self.file_path, 'w+') as f:
+        with open(self.file_path, "w+") as f:
             for key, value in state.items():
                 last_state[key] = value
             f.write(json.dumps(last_state))

@@ -1,0 +1,62 @@
+# docker-compose.yml
+
+version: "3.9"
+services:
+  db:
+    image: postgres:13
+    restart: always
+    volumes:
+      - postgresql:/var/lib/postgresql/data
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U app -d movies_database" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  elastic_search:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.6.2
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    env_file:
+      - .env
+    environment:
+      - discovery.type=${DISCOVERY_TYPE}
+      - xpack.security.enabled=${XPACK_SEC_ENABLE}
+    healthcheck:
+      test: curl -u elastic:elastic -s -f localhost:9200/_cat/health >/dev/null || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      db:
+        condition: service_healthy
+  etl:
+    build: etl
+    env_file:
+      - .env
+    volumes:
+      - storage:/etl/storage
+    environment:
+      - PYTHONPATH=/
+    depends_on:
+      elastic_search:
+        condition: service_healthy
+volumes:
+  esdata:
+    external: true
+    name: elastic_data
+  postgresql:
+    external: true
+    name: postgresql
+  storage:
+    external: true
+    name: json_storage
