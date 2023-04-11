@@ -20,18 +20,24 @@ state = State(JsonFileStorage(STORAGE))
 def etl(
         load: Loader,
         extract: PostgresExtractor,
-        chunk: int,
-        delay_sek: int
+        chunk: int
 ) -> None:
+    """
+    Функция ETL (Extract, transform, load)
+    :param load: Принимает объект Loader
+    :param extract: Принимает объект PostgresExtractor
+    :param chunk: Размер чанка для выгрузки и загрзки
+    :return:
+    """
     transformer = Transform(extract.extractors())
     chunk_items = chunked(transformer.transform(), chunk)
     for items in chunk_items:
         load.bulk(items)
-    sleep(delay_sek)
 
 
 if __name__ == "__main__":
     with Loader(ES_CONFIG) as loader:
         with PostgresExtractor(PG_CONFIG, chunk_size, state) as extractor:
             while True:
-                etl(loader, extractor, chunk_size, delay)
+                etl(loader, extractor, chunk_size)
+                sleep(delay)

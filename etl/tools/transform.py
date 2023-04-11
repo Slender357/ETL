@@ -8,6 +8,11 @@ class Transform:
         self.iterator = iterator
 
     def transform(self) -> Iterable[dict[str, Any]]:
+        """
+        Функция генератор трансформации формата данных
+        для загрузки в Elasticsearch.
+        :return: данные фильма в виде словаря
+        """
         for row in self.iterator:
             movie = self._pre_validate(row).dict()
             movie["_id"] = movie["id"]
@@ -15,6 +20,13 @@ class Transform:
 
     @staticmethod
     def _pre_validate(row: dict[str, Any]) -> FilmWorkES:
+        """
+        Функция валидирует данные фильма в виде словаря
+        и возвращает данные фильма в моделе FilmWorkES.
+        для загрузки в Elasticsearch.
+        :param row: данные фильма в виде словаря
+        :return: данные фильма в моделе FilmWorkES
+        """
         actors, actors_name = [], []
         writers, writers_name = [], []
         director = []

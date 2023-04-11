@@ -9,67 +9,7 @@ from psycopg2.extras import DictCursor
 from etl.tools.backoff import BOFF_CONFIG, backoff
 from etl.tools.config import PostgresConfig
 from etl.tools.state import State
-
-
-def get_query(table: str, last_uuid: str = None, where_in: list = None) -> str:
-    query = ""
-    if table == "genre" or table == "person":
-        query = f"""
-        SELECT id, modified
-        FROM content.{table}
-        WHERE modified > %s AND modified < %s"""
-        if last_uuid is not None:
-            query += " AND id > %s"
-        query += " ORDER BY id LIMIT %s;"
-    if table == "genre_film_work" or table == "person_film_work":
-        query = f"""SELECT DISTINCT fw.id as id
-                FROM content.film_work fw
-                LEFT JOIN content.{table} rfw ON rfw.film_work_id = fw.id
-                WHERE"""
-        if where_in is not None:
-            ref_id = "genre_id" if table == "genre_film_work" else "person_id"
-            query += f" rfw.{ref_id} IN "
-            query += f"({', '.join('%s' for _ in where_in)})"
-        if last_uuid is not None:
-            query += " AND fw.id > %s"
-        query += " ORDER BY fw.id LIMIT %s;"
-    if table == "film_work":
-        query = """
-        SELECT
-        fw.id,
-        fw.title,
-        fw.description,
-        fw.rating,
-        fw.type,
-        fw.created,
-        fw.modified as modified,
-        COALESCE (
-           json_agg(
-               DISTINCT jsonb_build_object(
-                   'person_role', pfw.role,
-                   'person_id', p.id,
-                   'person_name', p.full_name
-               )
-           ) FILTER (WHERE p.id is not null),
-           '[]'
-        ) as persons,
-        array_agg(DISTINCT g.name) as genres
-    FROM content.film_work fw
-    LEFT JOIN content.person_film_work pfw ON pfw.film_work_id = fw.id
-    LEFT JOIN content.person p ON p.id = pfw.person_id
-    LEFT JOIN content.genre_film_work gfw ON gfw.film_work_id = fw.id
-    LEFT JOIN content.genre g ON g.id = gfw.genre_id
-    WHERE"""
-        if where_in is not None:
-            query += " fw.id IN "
-            query += f"({', '.join('%s' for _ in where_in)})"
-            query += " GROUP BY fw.id"
-        else:
-            query += " fw.modified > %s AND fw.modified < %s"
-            if last_uuid is not None:
-                query += " AND fw.id > %s"
-            query += " GROUP BY fw.id ORDER BY fw.id LIMIT %s"
-    return query
+from etl.tools.maker_guery import get_query
 
 
 class PostgresExtractor:
@@ -83,6 +23,11 @@ class PostgresExtractor:
 
     @backoff(**BOFF_CONFIG.dict())
     def connect(self):
+        """
+        Создается подлючение к Postgres.
+        Ошибка если Postgres недоступен.
+        :return:
+        """
         self.connection = psycopg2.connect(
             **self.dsl,
             cursor_factory=DictCursor
@@ -90,6 +35,14 @@ class PostgresExtractor:
 
     @staticmethod
     def _reconnect(func: Callable) -> Callable:
+        """
+        Попытка выполнить функцию.
+        При неудаче происходит подключение к базе до тех пор,
+        пока база не будет доступна.
+        :param func:
+        :return:
+        """
+
         @wraps(func)
         def inner(self, *args, **kwargs):
             while True:
@@ -104,6 +57,12 @@ class PostgresExtractor:
 
     @_reconnect
     def extractor_films(self) -> Iterable[dict[str, Any]]:
+        """
+        Функция генератор для получения фильмов.
+        Выборка ограничена датой старта, датой последней проверки,
+        лимитом, последним uuid
+        :return: возвращает данные фильма в виде словаря
+        """
         while True:
             with self.connection.cursor() as curs:
                 last_uuid = self.state.get_state("film_work_last_uuid")
@@ -121,6 +80,12 @@ class PostgresExtractor:
 
     @_reconnect
     def _extractor_films_in(self, in_films) -> Iterable[dict[str, Any]]:
+        """
+        Функция генератор для получения фильмов.
+        Выборка ограничена списком uuid фильмов
+        :param in_films: список запрашиваемых фильмов
+        :return: возвращает данные фильма в виде словаря
+        """
         with self.connection.cursor() as curs:
             query = get_query("film_work", where_in=in_films)
             curs.execute(query, in_films)
@@ -129,6 +94,16 @@ class PostgresExtractor:
 
     @_reconnect
     def _extractor_ids(self, table, where_in=None) -> Iterable[list[str]]:
+        """
+        Функция генератор для получения списка uuid данной таблицы.
+        Выборка выборка может быть ограничена 2 спосбомаи:
+        1.  Ограничена датой старта, датой последней проверки,
+            лимитом, последним uuid.
+        2.  Списком uuid, последним uuid, лимитом
+        :param table: название таблицы
+        :param where_in: список uuid
+        :return: список uuid
+        """
         while True:
             with self.connection.cursor() as curs:
                 ids_ = []
@@ -153,6 +128,14 @@ class PostgresExtractor:
             self,
             reference_tab: str
     ) -> Iterable[dict[str, Any]]:
+        """
+        Функция генератор для получения изменений фильмов через 3 запроса
+        Сначала происходит выборка изменений в reference таблице,
+        Далее собирается список свзаных фильмов через таблицу М2М
+        Собираются все фильмы входящие в выборку из прошлого запроса
+        :param reference_tab: таблица genre или person
+        :return: возвращает данные фильма в виде словаря
+        """
         for reference_ids in self._extractor_ids(reference_tab):
             for film_work_ids in self._extractor_ids(
                     f"{reference_tab}_film_work", reference_ids
@@ -161,6 +144,18 @@ class PostgresExtractor:
             self.state.set_state(f"{reference_tab}_film_work_last_uuid", None)
 
     def extractors(self) -> Iterable[dict[str, Any]]:
+        """
+        Функция композитного генератора для получения изменения фильмов.
+        В начале итерации создается ограничение в виде временного отрезка.
+        Проверка происходит:
+
+            1. От даты старой проверки (если такая имеется)
+            2. До начала старта цикла.
+
+        При успешном прохождении всех проверок,
+        последняя дата проверки назначается датой старта.
+        :return:озвращает данные фильма в виде словаря
+        """
         self.last_modified = self.state.get_state("last_modified")
         if self.last_modified is None:
             self.last_modified = datetime(1, 1, 1, tzinfo=timezone.utc)
@@ -189,11 +184,26 @@ class PostgresExtractor:
         self.state.butch_set_state(batch)
 
     def __del__(self):
+        """
+        Закрывает подклчение к Postgres
+        :return:
+        """
         self.connection.close()
 
     def __enter__(self):
+        """
+        Иницирует подклчение к Postgres
+        :return:
+        """
         self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Закрывает подклчение к Postgres
+        :param exc_type:
+        :param exc_val:
+        :param exc_tb:
+        :return:
+        """
         self.connection.close()
