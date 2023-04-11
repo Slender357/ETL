@@ -62,7 +62,6 @@ class Loader:
             self.connection,
             index="movies", actions=data
         )
-        time.sleep(1)
         if len(errors) != 0:
             log.error(f"Elasticsearch dont save {errors} document, try again")
             raise

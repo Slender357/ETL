@@ -77,9 +77,12 @@ class PostgresExtractor:
                 curs.execute(query, data)
                 if not curs.rowcount:
                     break
-                for row in curs.fetchall():
-                    yield dict(row)
-                self.state.set_state("film_work_last_uuid", row["id"])
+                for _ in range(self.batch_size):
+                    row = curs.fetchone()
+                    if row is not None:
+                        last_row = row
+                    yield row
+                self.state.set_state("film_work_last_uuid", last_row["id"])
 
     @_reconnect
     def _extractor_films_in(self, in_films) -> Iterable[dict[str, Any]]:
@@ -92,8 +95,9 @@ class PostgresExtractor:
         with self.connection.cursor() as curs:
             query = get_query("film_work", where_in=in_films)
             curs.execute(query, in_films)
-            for row in curs.fetchall():
-                yield dict(row)
+            for _ in range(self.batch_size):
+                row = curs.fetchone()
+                yield row
 
     @_reconnect
     def _extractor_ids(self, table, where_in=None) -> Iterable[list[str]]:
@@ -145,6 +149,7 @@ class PostgresExtractor:
             ):
                 yield from self._extractor_films_in(film_work_ids)
             self.state.set_state(f"{reference_tab}_film_work_last_uuid", None)
+            log.info("Del ref_film_work_last_uuid")
 
     def extractors(self) -> Iterable[dict[str, Any]]:
         """
@@ -169,15 +174,15 @@ class PostgresExtractor:
         log.info("Start check films")
         yield from self.extractor_films()
         log.info("End check films")
-        if self.state.get_state("last_modified") is None:
-            log.info("Last_modified is None,set last_modified")
-            batch = {
-                "start_time": None,
-                "last_modified": str(self.start_time),
-                "film_work_last_uuid": None,
-            }
-            self.state.butch_set_state(batch)
-            return
+        # if self.state.get_state("last_modified") is None:
+        #     log.info("Last_modified is None,set last_modified")
+        #     batch = {
+        #         "start_time": None,
+        #         "last_modified": str(self.start_time),
+        #         "film_work_last_uuid": None,
+        #     }
+        #     self.state.butch_set_state(batch)
+        #     return
         log.info("Start check genre")
         yield from self._reference_extractor("genre")
         log.info("End check genre")

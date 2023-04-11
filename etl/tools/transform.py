@@ -14,12 +14,13 @@ class Transform:
         :return: данные фильма в виде словаря
         """
         for row in self.iterator:
-            movie = self._pre_validate(row).dict()
-            movie["_id"] = movie["id"]
+            movie = self._pre_validate(row)
+            if movie is not None:
+                movie["_id"] = movie["id"]
             yield movie
 
     @staticmethod
-    def _pre_validate(row: dict[str, Any]) -> FilmWorkES:
+    def _pre_validate(row: dict[str, Any] | None) -> dict[str, Any] | None:
         """
         Функция валидирует данные фильма в виде словаря
         и возвращает данные фильма в моделе FilmWorkES.
@@ -27,6 +28,8 @@ class Transform:
         :param row: данные фильма в виде словаря
         :return: данные фильма в моделе FilmWorkES
         """
+        if row is None:
+            return row
         actors, actors_name = [], []
         writers, writers_name = [], []
         director = []
@@ -61,4 +64,4 @@ class Transform:
             writers_names=writers_name,
             actors=actors,
             writers=writers,
-        )
+        ).dict()

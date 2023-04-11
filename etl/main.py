@@ -33,9 +33,9 @@ def etl(load: Loader, extract: PostgresExtractor, chunk: int) -> None:
     :return:
     """
     transformer = Transform(extract.extractors())
-    chunk_items = chunked(transformer.transform(), chunk,)
+    chunk_items = chunked(transformer.transform(), chunk, )
     for items in chunk_items:
-        load.bulk(items)
+        load.bulk(list(filter(None, items)))
 
 
 if __name__ == "__main__":
