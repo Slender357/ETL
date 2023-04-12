@@ -12,7 +12,7 @@ def get_query(table: str, last_uuid: str = None, where_in: list = None) -> str:
         query = f"""
         SELECT id, modified
         FROM content.{table}
-        WHERE modified > %s AND modified < %s"""
+        WHERE modified > %s AND modified <= %s"""
         if last_uuid is not None:
             query += " AND id > %s"
         query += " ORDER BY id LIMIT %s;"
@@ -60,7 +60,7 @@ def get_query(table: str, last_uuid: str = None, where_in: list = None) -> str:
             query += f"({', '.join('%s' for _ in where_in)})"
             query += " GROUP BY fw.id"
         else:
-            query += " fw.modified > %s AND fw.modified < %s"
+            query += " fw.modified > %s AND fw.modified <= %s"
             if last_uuid is not None:
                 query += " AND fw.id > %s"
             query += " GROUP BY fw.id ORDER BY fw.id LIMIT %s"
