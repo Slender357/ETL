@@ -37,13 +37,13 @@ def backoff(
             while True:
                 try:
                     return func(*args, **kwargs)
-                except Exception as r:
+                except Exception as error:
                     if t < border_sleep_time:
                         t = start_sleep_time * (factor**retry)
                     else:
                         t = border_sleep_time
                     sleep(t)
-                    log.info(f"{r} retry {retry} sleep {t}")
+                    log.info(f"{error} retry {retry} sleep {t}")
                     retry += 1
 
         return inner

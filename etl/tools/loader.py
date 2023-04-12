@@ -1,9 +1,11 @@
 import json
 import logging
 from functools import wraps
+from time import sleep
 from typing import Any, Callable, Optional
 
 from elasticsearch import BadRequestError, Elasticsearch, helpers
+from elasticsearch.helpers import BulkIndexError
 
 from etl.tools.backoff import BOFF_CONFIG, backoff
 from etl.tools.config import BASE_DIR, ESConfig
@@ -44,8 +46,8 @@ class Loader:
             while True:
                 try:
                     return func(self, *args, **kwargs)
-                except Exception as r:
-                    log.info(f"Elasticsearch connect ERROR {r}")
+                except Exception as error:
+                    log.info(f"Elasticsearch connect ERROR {error}")
                     self._connect()
 
         return inner
@@ -54,19 +56,36 @@ class Loader:
     def bulk(self, data: list[dict[str, Any]]) -> None:
         """
         Отправка данных в Elasticsearch.
-        :param data:
-        :return:
+        Если возникнут ошибки при загрузке данных,
+        повториться попытка загрузки через
+        self.config.bulk_retrys_sleep секунд.
+        При максимальном количестве попыток произойдет разрыв подклчения.
+        :param data: список объектов для загрузки
         """
-        ok, errors = helpers.bulk(
-            self.connection, index="movies", actions=data, raise_on_error=False
-        )
-        if len(errors) != 0:
-            log.info(
-                f"Elasticsearch dont save {len(errors)} document, try again"
+        retry = 0
+        while True:
+            ok, errors = helpers.bulk(
+                self.connection,
+                index="movies",
+                actions=data,
+                raise_on_error=False
             )
-            log.info(errors)
-            raise
-        log.info(f"Elasticsearch save {ok} document")
+            if len(errors) != 0:
+                log.info(
+                    f"Elasticsearch dont save "
+                    f"{len(errors)} document, try again"
+                )
+                if retry < self.config.bulk_max_retrys:
+                    retry += 1
+                    sleep(self.config.bulk_retrys_sleep)
+                    continue
+                else:
+                    log.info(errors)
+                    self.connection.close()
+                    log.info("Elasticsearch connection close")
+                    raise BulkIndexError
+            log.info(f"Elasticsearch save {ok} document")
+            break
 
     @_reconnect
     def create_movie_index(self):
@@ -107,19 +126,3 @@ class Loader:
         """
         self.connection.close()
         log.info("Elasticsearch connection close")
-
-
-# config = ESConfig()
-# connection = Elasticsearch(
-#     f"{config.host}:{config.port}"
-# )
-#
-# data = [{'_id': 'dd', 'dd': 'dd'}, {'_id': 'dd', 'dd': 'dd'}]
-# # try:
-# ok, errors = helpers.bulk(
-#     connection,
-#     index="movies", actions=data, raise_on_error=False
-# )
-# print(errors)
-# # except BulkIndexError as r:
-# #     print(r.errors)

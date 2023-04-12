@@ -22,6 +22,8 @@ class PostgresConfig(BaseSettings):
 class ESConfig(BaseSettings):
     host: str = Field(..., env="ES_HOST")
     port: str = Field(..., env="ES_PORT")
+    bulk_max_retrys: int = Field(..., env="ES_BULK_MAX_RETYS")
+    bulk_retrys_sleep: int = Field(..., env="ES_BULK_RETYS_SLEEP")
 
 
 class BackOffConfig(BaseSettings):
@@ -37,7 +39,7 @@ class MainConfig(BackOffConfig):
 
 LOGGING = {
     "format": "%(levelname)-8s [%(asctime)s] "
-    "%(name)s.%(funcName)s:%(lineno)d %(message)s",
+              "%(name)s.%(funcName)s:%(lineno)d %(message)s",
     "level": logging.INFO,
     "handlers": [logging.StreamHandler()],
 }
