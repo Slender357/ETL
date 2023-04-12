@@ -1,8 +1,6 @@
 import logging
 from time import sleep
 
-from more_itertools import chunked
-
 from etl.tools.config import (
     LOGGING,
     STORAGE,
@@ -13,7 +11,6 @@ from etl.tools.config import (
 from etl.tools.extractor import PostgresExtractor
 from etl.tools.loader import Loader
 from etl.tools.state import JsonFileStorage, State
-from etl.tools.transform import Transform
 
 MAIN_CONFIG = MainConfig()
 ES_CONFIG = ESConfig()
@@ -24,18 +21,15 @@ delay = MAIN_CONFIG.delay
 state = State(JsonFileStorage(STORAGE))
 
 
-def etl(load: Loader, extract: PostgresExtractor, chunk: int) -> None:
+def etl(load: Loader, extract: PostgresExtractor) -> None:
     """
     Функция ETL (Extract, transform, load)
     :param load: Принимает объект Loader
     :param extract: Принимает объект PostgresExtractor
-    :param chunk: Размер чанка для выгрузки и загрзки
-    :return:
     """
-    transformer = Transform(extract.extractors())
-    chunk_items = chunked(transformer.transform(), chunk, )
-    for items in chunk_items:
-        load.bulk(list(filter(None, items)))
+    postgres_extract = extract.extractors()
+    for items in postgres_extract:
+        load.bulk(items)
 
 
 if __name__ == "__main__":
@@ -45,6 +39,6 @@ if __name__ == "__main__":
     with Loader(ES_CONFIG) as loader:
         with PostgresExtractor(PG_CONFIG, chunk_size, state) as extractor:
             while True:
-                etl(loader, extractor, chunk_size)
+                etl(loader, extractor)
                 log.info(f"sleep {delay} sek")
                 sleep(delay)

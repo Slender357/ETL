@@ -4,6 +4,7 @@ from functools import wraps
 from typing import Any, Callable, Iterable
 
 import psycopg2
+from more_itertools import chunked
 from psycopg2 import InterfaceError, OperationalError
 from psycopg2.extras import DictCursor
 
@@ -11,6 +12,7 @@ from etl.tools.backoff import BOFF_CONFIG, backoff
 from etl.tools.config import PostgresConfig
 from etl.tools.maker_guery import get_query
 from etl.tools.state import State
+from etl.tools.transform import Transform
 
 log = logging.getLogger(__name__)
 
@@ -77,12 +79,9 @@ class PostgresExtractor:
                 curs.execute(query, data)
                 if not curs.rowcount:
                     break
-                for _ in range(self.batch_size):
-                    row = curs.fetchone()
-                    if row is not None:
-                        last_row = row
-                    yield row
-                self.state.set_state("film_work_last_uuid", last_row["id"])
+                for row in curs.fetchall():
+                    yield Transform(dict(row)).transform()
+                self.state.set_state("film_work_last_uuid", row["id"])
 
     @_reconnect
     def _extractor_films_in(self, in_films) -> Iterable[dict[str, Any]]:
@@ -95,9 +94,8 @@ class PostgresExtractor:
         with self.connection.cursor() as curs:
             query = get_query("film_work", where_in=in_films)
             curs.execute(query, in_films)
-            for _ in range(self.batch_size):
-                row = curs.fetchone()
-                yield row
+            for row in curs.fetchall():
+                yield Transform().transform()
 
     @_reconnect
     def _extractor_ids(self, table, where_in=None) -> Iterable[list[str]]:
@@ -145,13 +143,13 @@ class PostgresExtractor:
         """
         for reference_ids in self._extractor_ids(reference_tab):
             for film_work_ids in self._extractor_ids(
-                f"{reference_tab}_film_work", reference_ids
+                    f"{reference_tab}_film_work", reference_ids
             ):
                 yield from self._extractor_films_in(film_work_ids)
             self.state.set_state(f"{reference_tab}_film_work_last_uuid", None)
-            log.info("Del ref_film_work_last_uuid")
+            log.info(f"Del reference UUID from {reference_tab}_film_work")
 
-    def extractors(self) -> Iterable[dict[str, Any]]:
+    def extractors(self) -> Iterable[list[dict[str, Any]]]:
         """
         Функция композитного генератора для получения изменения фильмов.
         В начале итерации создается ограничение в виде временного отрезка.
@@ -172,7 +170,9 @@ class PostgresExtractor:
             self.start_time = datetime.now(timezone.utc)
             self.state.set_state("start_time", str(self.start_time))
         log.info("Start check films")
-        yield from self.extractor_films()
+        chunk_ex_films = chunked(self.extractor_films(), self.batch_size)
+        for items in chunk_ex_films:
+            yield items
         log.info("End check films")
         if self.state.get_state("last_modified") is None:
             log.info("Last_modified is None,set last_modified")
@@ -184,10 +184,20 @@ class PostgresExtractor:
             self.state.butch_set_state(batch)
             return
         log.info("Start check genre")
-        yield from self._reference_extractor("genre")
+        chunk_ref_films_g = chunked(
+            self._reference_extractor("genre"),
+            self.batch_size
+        )
+        for items in chunk_ref_films_g:
+            yield items
         log.info("End check genre")
         log.info("Start check person")
-        yield from self._reference_extractor("person")
+        chunk_ref_films_p = chunked(
+            self._reference_extractor("person"),
+            self.batch_size
+        )
+        for items in chunk_ref_films_p:
+            yield items
         log.info("End check person")
         batch = {
             "start_time": None,

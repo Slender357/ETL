@@ -1,39 +1,35 @@
-from typing import Any, Iterable
+from typing import Any
 
 from etl.tools.models import FilmWorkES, Person, PersonType
 
 
 class Transform:
-    def __init__(self, iterator: Iterable[dict[str, Any]]):
-        self.iterator = iterator
+    def __init__(self, movie: dict[str, Any]):
+        self.movie = movie
 
-    def transform(self) -> Iterable[dict[str, Any]]:
+    def transform(self) -> dict[str, Any]:
         """
-        Функция генератор трансформации формата данных
+        Функция трансформации формата данных
         для загрузки в Elasticsearch.
         :return: данные фильма в виде словаря
         """
-        for row in self.iterator:
-            movie = self._pre_validate(row)
-            if movie is not None:
-                movie["_id"] = movie["id"]
-            yield movie
+        movie = self._pre_validate(self.movie).dict()
+        movie["_id"] = movie["id"]
+        return movie
 
     @staticmethod
-    def _pre_validate(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _pre_validate(movie: dict[str, Any]) -> FilmWorkES:
         """
         Функция валидирует данные фильма в виде словаря
         и возвращает данные фильма в моделе FilmWorkES.
         для загрузки в Elasticsearch.
-        :param row: данные фильма в виде словаря
+        :param movie: данные фильма в виде словаря
         :return: данные фильма в моделе FilmWorkES
         """
-        if row is None:
-            return row
         actors, actors_name = [], []
         writers, writers_name = [], []
         director = []
-        for person in row["persons"]:
+        for person in movie["persons"]:
             match person["person_role"]:
                 case PersonType.actor.value:
                     actors.append(
@@ -54,14 +50,14 @@ class Transform:
                 case PersonType.director.value:
                     director.append(person["person_name"])
         return FilmWorkES(
-            id=row["id"],
-            imdb_rating=row["rating"],
-            genre=row["genres"],
-            title=row["title"],
-            description=row["description"],
+            id=movie["id"],
+            imdb_rating=movie["rating"],
+            genre=movie["genres"],
+            title=movie["title"],
+            description=movie["description"],
             director=director,
             actors_names=actors_name,
             writers_names=writers_name,
             actors=actors,
             writers=writers,
-        ).dict()
+        )
