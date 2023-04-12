@@ -1,10 +1,12 @@
 from typing import Any
 
+from psycopg2.extras import DictRow
+
 from etl.tools.models import FilmWorkES, Person, PersonType
 
 
 class Transform:
-    def __init__(self, movie: dict[str, Any]):
+    def __init__(self, movie: DictRow):
         self.movie = movie
 
     def transform(self) -> dict[str, Any]:
@@ -18,9 +20,9 @@ class Transform:
         return movie
 
     @staticmethod
-    def _pre_validate(movie: dict[str, Any]) -> FilmWorkES:
+    def _pre_validate(movie: DictRow) -> FilmWorkES:
         """
-        Функция валидирует данные фильма в виде словаря
+        Функция валидирует данные фильма в виде DictRow
         и возвращает данные фильма в моделе FilmWorkES.
         для загрузки в Elasticsearch.
         :param movie: данные фильма в виде словаря

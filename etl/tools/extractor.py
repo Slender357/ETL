@@ -1,11 +1,12 @@
 import logging
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Optional
 
 import psycopg2
 from more_itertools import chunked
 from psycopg2 import InterfaceError, OperationalError
+from psycopg2.extensions import connection as _connection
 from psycopg2.extras import DictCursor
 
 from etl.tools.backoff import BOFF_CONFIG, backoff
@@ -20,18 +21,17 @@ log = logging.getLogger(__name__)
 class PostgresExtractor:
     def __init__(self, dsl: PostgresConfig, batch_size: int, state: State):
         self.batch_size = batch_size
-        self.connection = None
+        self.connection: Optional[_connection] = None
         self.dsl = dsl.dict()
         self.state = state
-        self.start_time = None
-        self.last_modified = None
+        self.start_time: Optional[datetime] = None
+        self.last_modified: Optional[datetime] = None
 
     @backoff(**BOFF_CONFIG.dict())
     def connect(self):
         """
         Создается подлючение к Postgres.
         Ошибка если Postgres недоступен.
-        :return:
         """
         self.connection = psycopg2.connect(
             **self.dsl,
@@ -41,11 +41,11 @@ class PostgresExtractor:
     @staticmethod
     def _reconnect(func: Callable) -> Callable:
         """
-        Попытка выполнить функцию.
+        Попытка выполнить функцию генератор.
         При неудаче происходит подключение к базе до тех пор,
         пока база не будет доступна.
-        :param func:
-        :return:
+        :param func: функция генератор
+        :return: результат выполнения функции
         """
 
         @wraps(func)
@@ -60,8 +60,38 @@ class PostgresExtractor:
 
         return inner
 
+    @staticmethod
+    def chunk_decor(func: Callable) -> Callable:
+        """
+        Функция чанкизирует данные генераторов
+        и отдает лист объектов для записи
+        при успехе устанавливает в стейт последий UUID
+        отданной пачки в соответсвующую таблицу
+        :param func: функция генератор
+        :return: лист объектов для записи
+        """
+        @wraps(func)
+        def inner(self, *args, **kwargs):
+            chunk_items = chunked(func(self, *args, **kwargs), self.batch_size)
+            for items in chunk_items:
+                yield items
+                try:
+                    last_uuid = items[-1]["id"]
+                except TypeError:
+                    last_uuid = items[-1]
+                self.state.set_state(
+                    f"{kwargs['table']}_last_uuid",
+                    str(last_uuid)
+                )
+
+        return inner
+
     @_reconnect
-    def extractor_films(self) -> Iterable[dict[str, Any]]:
+    @chunk_decor
+    def extractor_films(
+            self, table: str,
+            last_uuid=None
+    ) -> Iterable[dict[str, Any]]:
         """
         Функция генератор для получения фильмов.
         Выборка ограничена датой старта, датой последней проверки,
@@ -70,9 +100,10 @@ class PostgresExtractor:
         """
         while True:
             with self.connection.cursor() as curs:
-                last_uuid = self.state.get_state("film_work_last_uuid")
+                if last_uuid is None:
+                    last_uuid = self.state.get_state(f"{table}_last_uuid")
                 data = [self.last_modified, self.start_time]
-                query = get_query("film_work", last_uuid=last_uuid)
+                query = get_query(table, last_uuid=last_uuid)
                 if last_uuid is not None:
                     data.append(last_uuid)
                 data.append(self.batch_size)
@@ -80,8 +111,9 @@ class PostgresExtractor:
                 if not curs.rowcount:
                     break
                 for row in curs.fetchall():
-                    yield Transform(dict(row)).transform()
-                self.state.set_state("film_work_last_uuid", row["id"])
+                    yield Transform(row).transform()
+                last_uuid = row["id"]
+                # self.state.set_state("film_work_last_uuid", row["id"])
 
     @_reconnect
     def _extractor_films_in(self, in_films) -> Iterable[dict[str, Any]]:
@@ -95,10 +127,13 @@ class PostgresExtractor:
             query = get_query("film_work", where_in=in_films)
             curs.execute(query, in_films)
             for row in curs.fetchall():
-                yield Transform().transform()
+                yield Transform(row).transform()
 
     @_reconnect
-    def _extractor_ids(self, table, where_in=None) -> Iterable[list[str]]:
+    @chunk_decor
+    def _extractor_ids(
+        self, table: str, last_uuid: str = None, where_in=None
+    ) -> Iterable[list[str]]:
         """
         Функция генератор для получения списка uuid данной таблицы.
         Выборка выборка может быть ограничена 2 спосбомаи:
@@ -111,8 +146,8 @@ class PostgresExtractor:
         """
         while True:
             with self.connection.cursor() as curs:
-                ids_ = []
-                last_uuid = self.state.get_state(f"{table}_last_uuid")
+                if last_uuid is None:
+                    last_uuid = self.state.get_state(f"{table}_last_uuid")
                 if where_in is None:
                     data = [self.last_modified, self.start_time]
                 else:
@@ -125,13 +160,11 @@ class PostgresExtractor:
                 if not curs.rowcount:
                     break
                 for row in curs.fetchall():
-                    ids_.append(row["id"])
-                yield ids_
-                self.state.set_state(f"{table}_last_uuid", row["id"])
+                    yield row["id"]
+                last_uuid = row["id"]
 
     def _reference_extractor(
-            self,
-            reference_tab: str
+            self, reference_tab: str
     ) -> Iterable[dict[str, Any]]:
         """
         Функция генератор для получения изменений фильмов через 3 запроса
@@ -139,13 +172,16 @@ class PostgresExtractor:
         Далее собирается список свзаных фильмов через таблицу М2М
         Собираются все фильмы входящие в выборку из прошлого запроса
         :param reference_tab: таблица genre или person
-        :return: возвращает данные фильма в виде словаря
+        :return: возвращает список объектов для записи
         """
-        for reference_ids in self._extractor_ids(reference_tab):
+        for reference_ids in self._extractor_ids(table=reference_tab):
             for film_work_ids in self._extractor_ids(
-                    f"{reference_tab}_film_work", reference_ids
+                table=f"{reference_tab}_film_work", where_in=reference_ids
             ):
-                yield from self._extractor_films_in(film_work_ids)
+                yield from chunked(
+                    self._extractor_films_in(in_films=film_work_ids),
+                    self.batch_size
+                )
             self.state.set_state(f"{reference_tab}_film_work_last_uuid", None)
             log.info(f"Del reference UUID from {reference_tab}_film_work")
 
@@ -160,7 +196,7 @@ class PostgresExtractor:
 
         При успешном прохождении всех проверок,
         последняя дата проверки назначается датой старта.
-        :return:озвращает данные фильма в виде словаря
+        :return:возвращает список объектов для записи
         """
         self.last_modified = self.state.get_state("last_modified")
         if self.last_modified is None:
@@ -170,9 +206,7 @@ class PostgresExtractor:
             self.start_time = datetime.now(timezone.utc)
             self.state.set_state("start_time", str(self.start_time))
         log.info("Start check films")
-        chunk_ex_films = chunked(self.extractor_films(), self.batch_size)
-        for items in chunk_ex_films:
-            yield items
+        yield from self.extractor_films(table="film_work")
         log.info("End check films")
         if self.state.get_state("last_modified") is None:
             log.info("Last_modified is None,set last_modified")
@@ -184,20 +218,10 @@ class PostgresExtractor:
             self.state.butch_set_state(batch)
             return
         log.info("Start check genre")
-        chunk_ref_films_g = chunked(
-            self._reference_extractor("genre"),
-            self.batch_size
-        )
-        for items in chunk_ref_films_g:
-            yield items
+        yield from self._reference_extractor(reference_tab="genre")
         log.info("End check genre")
         log.info("Start check person")
-        chunk_ref_films_p = chunked(
-            self._reference_extractor("person"),
-            self.batch_size
-        )
-        for items in chunk_ref_films_p:
-            yield items
+        yield from self._reference_extractor(reference_tab="person")
         log.info("End check person")
         batch = {
             "start_time": None,
@@ -212,7 +236,6 @@ class PostgresExtractor:
     def __del__(self):
         """
         Закрывает подклчение к Postgres
-        :return:
         """
         self.connection.close()
         log.info("Postgres connection close")
@@ -220,7 +243,7 @@ class PostgresExtractor:
     def __enter__(self):
         """
         Инициирует подклчение к Postgres
-        :return:
+        :return: self
         """
         self.connect()
         return self
@@ -231,7 +254,6 @@ class PostgresExtractor:
         :param exc_type:
         :param exc_val:
         :param exc_tb:
-        :return:
         """
         self.connection.close()
         log.info("Postgres connection close")

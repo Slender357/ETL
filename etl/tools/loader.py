@@ -58,11 +58,13 @@ class Loader:
         :return:
         """
         ok, errors = helpers.bulk(
-            self.connection,
-            index="movies", actions=data
+            self.connection, index="movies", actions=data, raise_on_error=False
         )
         if len(errors) != 0:
-            log.error(f"Elasticsearch dont save {errors} document, try again")
+            log.info(
+                f"Elasticsearch dont save {len(errors)} document, try again"
+            )
+            log.info(errors)
             raise
         log.info(f"Elasticsearch save {ok} document")
 
@@ -105,3 +107,19 @@ class Loader:
         """
         self.connection.close()
         log.info("Elasticsearch connection close")
+
+
+# config = ESConfig()
+# connection = Elasticsearch(
+#     f"{config.host}:{config.port}"
+# )
+#
+# data = [{'_id': 'dd', 'dd': 'dd'}, {'_id': 'dd', 'dd': 'dd'}]
+# # try:
+# ok, errors = helpers.bulk(
+#     connection,
+#     index="movies", actions=data, raise_on_error=False
+# )
+# print(errors)
+# # except BulkIndexError as r:
+# #     print(r.errors)
