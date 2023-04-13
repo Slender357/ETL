@@ -5,7 +5,7 @@ from typing import Callable
 
 from postgres_to_es.tools.config import BackOffConfig
 
-BOFF_CONFIG = BackOffConfig()
+boff_config = BackOffConfig()
 log = logging.getLogger(__name__)
 
 

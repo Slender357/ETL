@@ -12,12 +12,12 @@ from postgres_to_es.tools.extractor import PostgresExtractor
 from postgres_to_es.tools.loader import Loader
 from postgres_to_es.tools.state import JsonFileStorage, State
 
-MAIN_CONFIG = MainConfig()
-ES_CONFIG = ESConfig()
-PG_CONFIG = PostgresConfig()
+main_config = MainConfig()
+es_config = ESConfig()
+pg_config = PostgresConfig()
 
-chunk_size = MAIN_CONFIG.chunk_size
-delay = MAIN_CONFIG.delay
+chunk_size = main_config.chunk_size
+delay = main_config.delay
 state = State(JsonFileStorage(STORAGE))
 
 
@@ -36,8 +36,8 @@ if __name__ == "__main__":
     logging.basicConfig(**LOGGING)
     log = logging.getLogger(__name__)
     log.info("start")
-    with Loader(ES_CONFIG) as loader:
-        with PostgresExtractor(PG_CONFIG, chunk_size, state) as extractor:
+    with Loader(es_config) as loader:
+        with PostgresExtractor(pg_config, chunk_size, state) as extractor:
             while True:
                 etl(loader, extractor)
                 log.info(f"sleep {delay} sek")

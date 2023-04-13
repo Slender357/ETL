@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 from elasticsearch import BadRequestError, Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 
-from postgres_to_es.tools.backoff import BOFF_CONFIG, backoff
+from postgres_to_es.tools.backoff import boff_config, backoff
 from postgres_to_es.tools.config import BASE_DIR, ESConfig
 
 log = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class Loader:
         self.config = config
         self.connection: Optional[Elasticsearch] = None
 
-    @backoff(**BOFF_CONFIG.dict())
+    @backoff(**boff_config.dict())
     def _connect(self):
         """
         Создается подлючение к Elasticsearch.
@@ -109,13 +109,6 @@ class Loader:
         self._connect()
         self.create_movie_index()
         return self
-
-    def __del__(self):
-        """
-        Закрывает подключение к Elasticsearch.
-        """
-        self.connection.close()
-        log.info("Elasticsearch connection close")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """

@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -26,10 +25,10 @@ class Person(UUIDMixin):
 
 class FilmWorkES(UUIDMixin):
     title: str
-    imdb_rating: Optional[float]
-    genre: Optional[list[str]]
-    description: Optional[str]
-    director: Optional[list[str]]
+    imdb_rating: float | None
+    genre: list[str] | None
+    description: str | None
+    director: list[str] | None
     actors_names: list[str]
     writers_names: list[str]
     actors: list[Person]

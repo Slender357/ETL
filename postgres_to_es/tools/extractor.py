@@ -9,7 +9,7 @@ from psycopg2 import InterfaceError, OperationalError
 from psycopg2.extensions import connection as _connection
 from psycopg2.extras import DictCursor
 
-from postgres_to_es.tools.backoff import BOFF_CONFIG, backoff
+from postgres_to_es.tools.backoff import boff_config, backoff
 from postgres_to_es.tools.config import PostgresConfig
 from postgres_to_es.tools.maker_guery import get_query
 from postgres_to_es.tools.state import State
@@ -27,7 +27,7 @@ class PostgresExtractor:
         self.start_time: Optional[datetime] = None
         self.last_modified: Optional[datetime] = None
 
-    @backoff(**BOFF_CONFIG.dict())
+    @backoff(**boff_config.dict())
     def connect(self):
         """
         Создается подлючение к Postgres.
@@ -111,10 +111,19 @@ class PostgresExtractor:
                 curs.execute(query, data)
                 if not curs.rowcount:
                     break
+                # По поводу Limit и cursor задавал вопрос у наставников
+                # и посоветовали всегда ограничивать запросы
+                # если они могут вернуть слишком много строк.
+                # По документации psycopg2 следует что cursor помещает в
+                # память в сыром виде все данные при execute
+                # При падении приложения придется снова выгружать все данные
+                # через новый SQL запрос.
+                # Гипотетически при большом объеме фильмов может забиться вся память,
+                # Так что если это не принципиально я бы оставил все как есть)), так как
+                # Limit гарантирует что будет выгружено не больше строк чем в Limit.
                 for row in curs.fetchall():
                     yield Transform(row).transform()
                 last_uuid = row["id"]
-                # self.state.set_state("film_work_last_uuid", row["id"])
 
     @_reconnect
     def _extractor_films_in(self, in_films) -> Iterable[dict[str, Any]]:
@@ -233,13 +242,6 @@ class PostgresExtractor:
         }
         log.info("Set Last_modified")
         self.state.butch_set_state(batch)
-
-    def __del__(self):
-        """
-        Закрывает подклчение к Postgres
-        """
-        self.connection.close()
-        log.info("Postgres connection close")
 
     def __enter__(self):
         """
