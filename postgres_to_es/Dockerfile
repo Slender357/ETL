@@ -10,7 +10,7 @@ COPY requirements.txt requirements.txt
 
 RUN pip install --upgrade pip  \
     && pip install -r requirements.txt --no-cache-dir \
-    && mkdir -p /etl/storage
+    && mkdir -p /postgres_to_es/storage
 
 COPY . .
 

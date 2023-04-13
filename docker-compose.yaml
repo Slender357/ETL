@@ -43,7 +43,7 @@ services:
     env_file:
       - .env
     volumes:
-      - storage:/etl/storage
+      - storage:/postgres_to_es/storage
     environment:
       - PYTHONPATH=/
     depends_on:
