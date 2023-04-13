@@ -9,11 +9,11 @@ from psycopg2 import InterfaceError, OperationalError
 from psycopg2.extensions import connection as _connection
 from psycopg2.extras import DictCursor
 
-from etl.tools.backoff import BOFF_CONFIG, backoff
-from etl.tools.config import PostgresConfig
-from etl.tools.maker_guery import get_query
-from etl.tools.state import State
-from etl.tools.transform import Transform
+from postgres_to_es.tools.backoff import BOFF_CONFIG, backoff
+from postgres_to_es.tools.config import PostgresConfig
+from postgres_to_es.tools.maker_guery import get_query
+from postgres_to_es.tools.state import State
+from postgres_to_es.tools.transform import Transform
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +70,7 @@ class PostgresExtractor:
         :param func: функция генератор
         :return: лист объектов для записи
         """
+
         @wraps(func)
         def inner(self, *args, **kwargs):
             chunk_items = chunked(func(self, *args, **kwargs), self.batch_size)
@@ -132,7 +133,7 @@ class PostgresExtractor:
     @_reconnect
     @chunk_decor
     def _extractor_ids(
-        self, table: str, last_uuid: str = None, where_in=None
+            self, table: str, last_uuid: str = None, where_in=None
     ) -> Iterable[list[str]]:
         """
         Функция генератор для получения списка uuid данной таблицы.
@@ -176,7 +177,7 @@ class PostgresExtractor:
         """
         for reference_ids in self._extractor_ids(table=reference_tab):
             for film_work_ids in self._extractor_ids(
-                table=f"{reference_tab}_film_work", where_in=reference_ids
+                    table=f"{reference_tab}_film_work", where_in=reference_ids
             ):
                 yield from chunked(
                     self._extractor_films_in(in_films=film_work_ids),

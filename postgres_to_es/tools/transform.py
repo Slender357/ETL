@@ -2,7 +2,7 @@ from typing import Any
 
 from psycopg2.extras import DictRow
 
-from etl.tools.models import FilmWorkES, Person, PersonType
+from postgres_to_es.tools.models import FilmWorkES, Person, PersonType
 
 
 class Transform:

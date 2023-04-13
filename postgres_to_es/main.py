@@ -1,16 +1,16 @@
 import logging
 from time import sleep
 
-from etl.tools.config import (
+from postgres_to_es.tools.config import (
     LOGGING,
     STORAGE,
     ESConfig,
     MainConfig,
     PostgresConfig,
 )
-from etl.tools.extractor import PostgresExtractor
-from etl.tools.loader import Loader
-from etl.tools.state import JsonFileStorage, State
+from postgres_to_es.tools.extractor import PostgresExtractor
+from postgres_to_es.tools.loader import Loader
+from postgres_to_es.tools.state import JsonFileStorage, State
 
 MAIN_CONFIG = MainConfig()
 ES_CONFIG = ESConfig()

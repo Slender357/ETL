@@ -7,8 +7,8 @@ from typing import Any, Callable, Optional
 from elasticsearch import BadRequestError, Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 
-from etl.tools.backoff import BOFF_CONFIG, backoff
-from etl.tools.config import BASE_DIR, ESConfig
+from postgres_to_es.tools.backoff import BOFF_CONFIG, backoff
+from postgres_to_es.tools.config import BASE_DIR, ESConfig
 
 log = logging.getLogger(__name__)
 
