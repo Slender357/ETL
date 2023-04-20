@@ -8,7 +8,7 @@ from elasticsearch import BadRequestError, Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 
 from postgres_to_es.tools.backoff import boff_config, backoff
-from postgres_to_es.tools.config import BASE_DIR, ESConfig
+from postgres_to_es.tools.config import ES_SCHEME, ESConfig
 
 log = logging.getLogger(__name__)
 
@@ -88,17 +88,33 @@ class Loader:
             break
 
     @_reconnect
-    def create_movie_index(self):
-        try:
-            with open(BASE_DIR.joinpath("es_shema.json")) as j:
-                es_shema = json.load(j)
+    def create_indexes(self):
+        with open(ES_SCHEME.joinpath("es_shema.json")) as j:
+            es_shema = json.load(j)
+            try:
                 self.connection.indices.create(
                     settings=es_shema["settings"],
-                    mappings=es_shema["mappings"],
+                    mappings=es_shema["mappings_films"],
                     index="movies",
                 )
-        except BadRequestError:
-            pass
+            except BadRequestError:
+                pass
+            try:
+                self.connection.indices.create(
+                    settings=es_shema["settings"],
+                    mappings=es_shema["mappings_persons"],
+                    index="persons",
+                )
+            except BadRequestError:
+                pass
+            try:
+                self.connection.indices.create(
+                    settings=es_shema["settings"],
+                    mappings=es_shema["mappings_genres"],
+                    index="genres",
+                )
+            except BadRequestError:
+                pass
 
     def __enter__(self):
         """
@@ -107,7 +123,7 @@ class Loader:
         :return: self
         """
         self._connect()
-        self.create_movie_index()
+        self.create_indexes()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

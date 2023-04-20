@@ -8,6 +8,7 @@ from pydantic import BaseSettings, Field
 dotenv.load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ES_SCHEME = os.path.join(BASE_DIR, "el_settings")
 STORAGE = os.path.join(BASE_DIR, "storage/storage.json")
 
 
