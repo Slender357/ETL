@@ -89,12 +89,12 @@ class Loader:
 
     @_reconnect
     def create_indexes(self):
-        with open(ES_SCHEME.joinpath("es_shema.json")) as j:
+        with open(ES_SCHEME) as j:
             es_shema = json.load(j)
             try:
                 self.connection.indices.create(
                     settings=es_shema["settings"],
-                    mappings=es_shema["mappings_films"],
+                    mappings=es_shema["mappings_movies"],
                     index="movies",
                 )
             except BadRequestError:
