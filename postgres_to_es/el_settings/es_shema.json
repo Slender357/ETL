@@ -39,7 +39,7 @@
       }
     }
   },
-  "mappings": {
+  "mappings_movies": {
     "dynamic": "strict",
     "properties": {
       "id": {
@@ -101,6 +101,44 @@
             "analyzer": "ru_en"
           }
         }
+      }
+    }
+  },
+  "mappings_persons": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "full_name": {
+        "type": "text",
+        "analyzer": "ru_en",
+        "fields": {
+          "raw": {
+            "type":  "keyword"
+          }
+        }
+      }
+    }
+  },
+  "mappings_genres": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "text",
+        "analyzer": "ru_en",
+        "fields": {
+          "raw": {
+            "type":  "keyword"
+          }
+        }
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "ru_en"
       }
     }
   }

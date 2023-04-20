@@ -65,3 +65,38 @@ def get_query(table: str, last_uuid: str = None, where_in: list = None) -> str:
                 query += " AND fw.id > %s"
             query += " GROUP BY fw.id ORDER BY fw.id LIMIT %s"
     return query
+
+
+def get_query_single(table: str, last_uuid: str = None) -> str:
+    """
+    Функция создания query запроса в таблицу без зависимостей.
+    Все запросы сортируются по uuid
+    :param table: название таблицы сбора данных
+    :param last_uuid: последний uuid из прошлой выборки для ограничения
+    :param where_in: список id данные которых необходимо получить
+    :return:
+    """
+    query = ""
+    if table == "person":
+        query = """
+                SELECT
+                    sng.id,
+                    sng.full_name,
+                    sng.modified
+                FROM content.person sng
+                WHERE sng.modified > %s AND sng.modified <= %s"""
+        if last_uuid is not None:
+            query += " AND sng.id > %s"
+    elif table == "genre":
+        query = """
+                SELECT
+                    sng.id,
+                    sng.name,
+                    sng.description,
+                    sng.modified
+                FROM content.genre sng
+                WHERE sng.modified > %s AND sng.modified <= %s"""
+        if last_uuid is not None:
+            query += " AND sng.id > %s"
+    query += " ORDER BY sng.id LIMIT %s"
+    return query
