@@ -33,3 +33,12 @@ class FilmWorkES(UUIDMixin):
     writers_names: list[str]
     actors: list[Person]
     writers: list[Person]
+
+
+class PersonES(UUIDMixin):
+    full_name: str
+
+
+class GenresES(UUIDMixin):
+    name: str
+    description: str | None

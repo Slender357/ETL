@@ -28,8 +28,10 @@ def etl(load: Loader, extract: PostgresExtractor) -> None:
     :param extract: Принимает объект PostgresExtractor
     """
     postgres_extract = extract.extractors()
-    for items in postgres_extract:
-        load.bulk(items)
+    for items, index in postgres_extract:
+        # print(items)
+        # print(index)
+        load.bulk(index, items)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 from elasticsearch import BadRequestError, Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 
-from postgres_to_es.tools.backoff import boff_config, backoff
+from postgres_to_es.tools.backoff import backoff, boff_config
 from postgres_to_es.tools.config import ES_SCHEME, ESConfig
 
 log = logging.getLogger(__name__)
@@ -53,26 +53,27 @@ class Loader:
         return inner
 
     @_reconnect
-    def bulk(self, data: list[dict[str, Any]]) -> None:
+    def bulk(self, data: list[dict[str, Any]], index: str) -> None:
         """
         Отправка данных в Elasticsearch.
         Если возникнут ошибки при загрузке данных,
         повториться попытка загрузки через
         self.config.bulk_retrys_sleep секунд.
         При максимальном количестве попыток произойдет разрыв подклчения.
+        :param index: индекс записи
         :param data: список объектов для загрузки
         """
         retry = 0
         while True:
             ok, errors = helpers.bulk(
                 self.connection,
-                index="movies",
+                index=index,
                 actions=data,
                 raise_on_error=False
             )
             if len(errors) != 0:
                 log.info(
-                    f"Elasticsearch dont save "
+                    f"Elasticsearch dont save to {index}"
                     f"{len(errors)} document, try again"
                 )
                 if retry < self.config.bulk_max_retrys:
@@ -84,7 +85,7 @@ class Loader:
                     self.connection.close()
                     log.info("Elasticsearch connection close")
                     raise BulkIndexError
-            log.info(f"Elasticsearch save {ok} document")
+            log.info(f"Elasticsearch save in {index} {ok} document")
             break
 
     @_reconnect
