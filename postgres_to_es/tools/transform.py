@@ -82,7 +82,7 @@ class Transform:
         """
         actors, actors_name = [], []
         writers, writers_name = [], []
-        director = []
+        directors, directors_name = [], []
         for person in raw_data["persons"]:
             match person["person_role"]:
                 case PersonType.actor.value:
@@ -102,16 +102,23 @@ class Transform:
                     )
                     writers_name.append(person["person_name"])
                 case PersonType.director.value:
-                    director.append(person["person_name"])
+                    directors.append(
+                        Person(
+                            id=person["person_id"],
+                            name=person["person_name"]
+                        )
+                    )
+                    directors_name.append(person["person_name"])
         return FilmWorkES(
             id=raw_data["id"],
             imdb_rating=raw_data["rating"],
             genre=raw_data["genres"],
             title=raw_data["title"],
             description=raw_data["description"],
-            director=director,
+            directors=directors,
             actors_names=actors_name,
             writers_names=writers_name,
+            directors_name=directors_name,
             actors=actors,
             writers=writers,
         ).dict()

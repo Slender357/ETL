@@ -28,10 +28,11 @@ class FilmWorkES(UUIDMixin):
     imdb_rating: float | None
     genre: list[str] | None
     description: str | None
-    director: list[str] | None
-    actors_names: list[str]
-    writers_names: list[str]
+    directors_name: list[str] | None
+    actors_names: list[str] | None
+    writers_names: list[str] | None
     actors: list[Person]
+    directors: list[Person]
     writers: list[Person]
 
 
