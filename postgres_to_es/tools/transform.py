@@ -8,6 +8,7 @@ from postgres_to_es.tools.models import (
     Person,
     PersonES,
     PersonType,
+    Genre,
 )
 
 
@@ -83,6 +84,7 @@ class Transform:
         actors, actors_name = [], []
         writers, writers_name = [], []
         directors, directors_name = [], []
+        genres, genres_name = [], []
         for person in raw_data["persons"]:
             match person["person_role"]:
                 case PersonType.actor.value:
@@ -109,10 +111,18 @@ class Transform:
                         )
                     )
                     directors_name.append(person["person_name"])
+        for genre in raw_data["genres"]:
+            genres.append(Genre(
+                id=genre["genre_id"],
+                name=genre["genre_name"]
+            ))
+            genres_name.append(genre["genre_name"])
+
         return FilmWorkES(
             id=raw_data["id"],
             imdb_rating=raw_data["rating"],
-            genre=raw_data["genres"],
+            genres=genres,
+            genres_name=genres_name,
             title=raw_data["title"],
             description=raw_data["description"],
             directors=directors,
