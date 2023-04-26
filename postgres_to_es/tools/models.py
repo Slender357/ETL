@@ -23,10 +23,15 @@ class Person(UUIDMixin):
     name: str
 
 
+class Genre(UUIDMixin):
+    name: str
+
+
 class FilmWorkES(UUIDMixin):
     title: str
     imdb_rating: float | None
-    genre: list[str] | None
+    genres: list[Genre] | None
+    genres_name: list[str] | None
     description: str | None
     directors_name: list[str] | None
     actors_names: list[str] | None
