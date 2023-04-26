@@ -2,7 +2,7 @@
 
 version: "3.9"
 services:
-  db:
+  postgres:
     image: postgres:13
     restart: always
     volumes:
@@ -21,7 +21,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  elastic_search:
+  elasticsearch:
     image: ghcr.io/yp-middle-python-24/elasticsearch:8.7.0
     ports:
       - "9200:9200"
@@ -38,7 +38,7 @@ services:
       timeout: 10s
       retries: 5
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
   etl:
     build: postgres_to_es
@@ -49,7 +49,7 @@ services:
     environment:
       - PYTHONPATH=/
     depends_on:
-      elastic_search:
+      elasticsearch:
         condition: service_healthy
 volumes:
   esdata:
