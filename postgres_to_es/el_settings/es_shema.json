@@ -48,23 +48,6 @@
       "imdb_rating": {
         "type": "float"
       },
-      "genres": {
-        "type": "nested",
-        "dynamic": "strict",
-        "properties": {
-          "id": {
-            "type": "keyword"
-          },
-          "name": {
-            "type": "text",
-            "analyzer": "ru_en"
-          }
-        }
-      },
-      "genres_name": {
-        "type": "keyword",
-        "analyzer": "ru_en"
-      },
       "title": {
         "type": "text",
         "analyzer": "ru_en",
@@ -87,6 +70,10 @@
         "analyzer": "ru_en"
       },
       "writers_names": {
+        "type": "text",
+        "analyzer": "ru_en"
+      },
+      "genres_name": {
         "type": "text",
         "analyzer": "ru_en"
       },
@@ -117,6 +104,19 @@
         }
       },
       "writers": {
+        "type": "nested",
+        "dynamic": "strict",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "name": {
+            "type": "text",
+            "analyzer": "ru_en"
+          }
+        }
+      },
+      "genres": {
         "type": "nested",
         "dynamic": "strict",
         "properties": {

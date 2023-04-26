@@ -22,7 +22,7 @@ services:
       timeout: 5s
       retries: 5
   elastic_search:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.6.2
+    image: ghcr.io/yp-middle-python-24/elasticsearch:8.7.0
     ports:
       - "9200:9200"
     volumes:
@@ -53,8 +53,8 @@ services:
         condition: service_healthy
 volumes:
   esdata:
-    name: elastic_data
+    name: elastic_volume
   postgresql:
-    name: postgresql
+    name: pg_volume
   storage:
-    name: json_storage
+    name: storage
